@@ -158,35 +158,47 @@ class WebfleetScraper:
             if "login.webfleet.com" in self.page.url or "login" in self.page.url.lower():
                 logger.info("Page de login Keycloak détectée, authentification...")
                 await self.page.wait_for_load_state("networkidle")
-                await asyncio.sleep(2)  # Attendre le chargement complet
+                await asyncio.sleep(3)  # Attendre le chargement complet
 
-                # Nouveau formulaire Keycloak: Account, Username, Password
-                # Les champs sont des input[type="text"] sauf le password
-                text_inputs = await self.page.query_selector_all('input[type="text"]')
+                # Nouveau formulaire Keycloak avec sélecteurs spécifiques
+                # Utiliser les attributs name ou id pour cibler précisément chaque champ
 
-                if len(text_inputs) >= 2:
-                    # Premier champ: Account
-                    if WEBFLEET_ACCOUNT:
-                        await text_inputs[0].fill(WEBFLEET_ACCOUNT)
-                        logger.info(f"Account rempli: {WEBFLEET_ACCOUNT}")
+                # Champ Account (premier champ texte - "Nombre de cuenta de Webfleet")
+                account_field = await self.page.query_selector('input[name="account"], input[id="account"], input[autocomplete="username"]:first-of-type')
+                if not account_field:
+                    # Fallback: premier input text
+                    account_field = await self.page.query_selector('input[type="text"]:first-of-type')
 
-                    # Deuxième champ: Username
-                    await text_inputs[1].fill(WEBFLEET_USERNAME)
+                if account_field and WEBFLEET_ACCOUNT:
+                    await account_field.click()
+                    await account_field.fill("")  # Clear first
+                    await account_field.fill(WEBFLEET_ACCOUNT)
+                    logger.info(f"Account rempli: {WEBFLEET_ACCOUNT}")
+                    await asyncio.sleep(0.5)
+
+                # Champ Username (deuxième champ texte - "Nombre de usuario")
+                username_field = await self.page.query_selector('input[name="username"], input[id="username"]')
+                if not username_field:
+                    # Fallback: tous les inputs text, prendre le deuxième
+                    text_inputs = await self.page.query_selector_all('input[type="text"]')
+                    if len(text_inputs) >= 2:
+                        username_field = text_inputs[1]
+
+                if username_field:
+                    await username_field.click()
+                    await username_field.fill("")  # Clear first
+                    await username_field.fill(WEBFLEET_USERNAME)
                     logger.info(f"Username rempli: {WEBFLEET_USERNAME}")
-                else:
-                    # Fallback: anciens sélecteurs
-                    for sel in ['input[name="username"]', '#username']:
-                        elem = await self.page.query_selector(sel)
-                        if elem:
-                            await elem.fill(WEBFLEET_USERNAME)
-                            logger.debug(f"Username rempli via {sel}")
-                            break
+                    await asyncio.sleep(0.5)
 
-                # Password
-                pwd = await self.page.query_selector('input[type="password"]')
-                if pwd:
-                    await pwd.fill(WEBFLEET_PASSWORD)
+                # Champ Password
+                pwd_field = await self.page.query_selector('input[type="password"], input[name="password"], input[id="password"]')
+                if pwd_field:
+                    await pwd_field.click()
+                    await pwd_field.fill("")  # Clear first
+                    await pwd_field.fill(WEBFLEET_PASSWORD)
                     logger.info("Password rempli")
+                    await asyncio.sleep(0.5)
 
                 # Submit - chercher le bouton
                 btn = await self.page.query_selector('button[type="submit"], input[type="submit"], button:has-text("Iniciar"), button:has-text("Login"), button:has-text("Sign")')
