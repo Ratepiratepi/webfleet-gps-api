@@ -346,9 +346,22 @@ class APIHandler(BaseHTTPRequestHandler):
         """CORS preflight"""
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
         self.end_headers()
+
+    def do_HEAD(self):
+        """Handle HEAD requests (used by Docker healthcheck)"""
+        if self.path == "/health":
+            data = cache.stats()
+            status = 200 if data["last_update"] and not data["error"] else 503
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+        else:
+            self.send_response(404)
+            self.end_headers()
 
     def do_GET(self):
         # Health check sans auth
