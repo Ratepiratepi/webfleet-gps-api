@@ -160,50 +160,42 @@ class WebfleetScraper:
                 await self.page.wait_for_load_state("networkidle")
                 await asyncio.sleep(3)  # Attendre le chargement complet
 
-                # Nouveau formulaire Keycloak avec sélecteurs spécifiques
-                # Utiliser les attributs name ou id pour cibler précisément chaque champ
+                # Utiliser page.fill() directement avec nth() pour cibler les champs
+                # Le formulaire Keycloak a 3 champs: Account, Username, Password
 
-                # Champ Account (premier champ texte - "Nombre de cuenta de Webfleet")
-                account_field = await self.page.query_selector('input[name="account"], input[id="account"], input[autocomplete="username"]:first-of-type')
-                if not account_field:
-                    # Fallback: premier input text
-                    account_field = await self.page.query_selector('input[type="text"]:first-of-type')
+                # Récupérer tous les champs input visibles
+                text_inputs = self.page.locator('input[type="text"]')
+                password_input = self.page.locator('input[type="password"]')
 
-                if account_field and WEBFLEET_ACCOUNT:
-                    await account_field.click()
-                    await account_field.fill("")  # Clear first
-                    await account_field.fill(WEBFLEET_ACCOUNT)
+                # Compter les champs texte
+                count = await text_inputs.count()
+                logger.info(f"Trouvé {count} champs texte")
+
+                if count >= 1 and WEBFLEET_ACCOUNT:
+                    # Premier champ: Account
+                    await text_inputs.nth(0).fill(WEBFLEET_ACCOUNT)
                     logger.info(f"Account rempli: {WEBFLEET_ACCOUNT}")
-                    await asyncio.sleep(0.5)
 
-                # Champ Username (deuxième champ texte - "Nombre de usuario")
-                username_field = await self.page.query_selector('input[name="username"], input[id="username"]')
-                if not username_field:
-                    # Fallback: tous les inputs text, prendre le deuxième
-                    text_inputs = await self.page.query_selector_all('input[type="text"]')
-                    if len(text_inputs) >= 2:
-                        username_field = text_inputs[1]
-
-                if username_field:
-                    await username_field.click()
-                    await username_field.fill("")  # Clear first
-                    await username_field.fill(WEBFLEET_USERNAME)
+                if count >= 2:
+                    # Deuxième champ: Username
+                    await text_inputs.nth(1).fill(WEBFLEET_USERNAME)
                     logger.info(f"Username rempli: {WEBFLEET_USERNAME}")
-                    await asyncio.sleep(0.5)
+                elif count == 1:
+                    # Si un seul champ texte, c'est peut-être username uniquement
+                    await text_inputs.nth(0).fill(WEBFLEET_USERNAME)
+                    logger.info(f"Username rempli (champ unique): {WEBFLEET_USERNAME}")
 
-                # Champ Password
-                pwd_field = await self.page.query_selector('input[type="password"], input[name="password"], input[id="password"]')
-                if pwd_field:
-                    await pwd_field.click()
-                    await pwd_field.fill("")  # Clear first
-                    await pwd_field.fill(WEBFLEET_PASSWORD)
+                # Password
+                if await password_input.count() > 0:
+                    await password_input.first.fill(WEBFLEET_PASSWORD)
                     logger.info("Password rempli")
-                    await asyncio.sleep(0.5)
 
-                # Submit - chercher le bouton
-                btn = await self.page.query_selector('button[type="submit"], input[type="submit"], button:has-text("Iniciar"), button:has-text("Login"), button:has-text("Sign")')
-                if btn:
-                    await btn.click()
+                await asyncio.sleep(1)
+
+                # Submit - cliquer sur le bouton
+                submit_btn = self.page.locator('button[type="submit"], input[type="submit"]')
+                if await submit_btn.count() > 0:
+                    await submit_btn.first.click()
                     logger.info("Bouton submit cliqué")
 
                 # Attendre redirection vers l'app
