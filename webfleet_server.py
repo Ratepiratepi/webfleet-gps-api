@@ -154,41 +154,48 @@ class WebfleetScraper:
                 timeout=60000
             )
 
-            # Vérifier si login requis
-            if "login" in self.page.url.lower() or "webfleet.com/fr_fr" in self.page.url:
-                logger.info("Page de login détectée, authentification...")
+            # Vérifier si login requis (nouveau portail login.webfleet.com)
+            if "login.webfleet.com" in self.page.url or "login" in self.page.url.lower():
+                logger.info("Page de login Keycloak détectée, authentification...")
                 await self.page.wait_for_load_state("networkidle")
+                await asyncio.sleep(2)  # Attendre le chargement complet
 
-                # Username
-                for sel in ['input[name="username"]', 'input[type="text"]', '#username']:
-                    elem = await self.page.query_selector(sel)
-                    if elem:
-                        await elem.fill(WEBFLEET_USERNAME)
-                        logger.debug(f"Username rempli via {sel}")
-                        break
+                # Nouveau formulaire Keycloak: Account, Username, Password
+                # Les champs sont des input[type="text"] sauf le password
+                text_inputs = await self.page.query_selector_all('input[type="text"]')
+
+                if len(text_inputs) >= 2:
+                    # Premier champ: Account
+                    if WEBFLEET_ACCOUNT:
+                        await text_inputs[0].fill(WEBFLEET_ACCOUNT)
+                        logger.info(f"Account rempli: {WEBFLEET_ACCOUNT}")
+
+                    # Deuxième champ: Username
+                    await text_inputs[1].fill(WEBFLEET_USERNAME)
+                    logger.info(f"Username rempli: {WEBFLEET_USERNAME}")
+                else:
+                    # Fallback: anciens sélecteurs
+                    for sel in ['input[name="username"]', '#username']:
+                        elem = await self.page.query_selector(sel)
+                        if elem:
+                            await elem.fill(WEBFLEET_USERNAME)
+                            logger.debug(f"Username rempli via {sel}")
+                            break
 
                 # Password
                 pwd = await self.page.query_selector('input[type="password"]')
                 if pwd:
                     await pwd.fill(WEBFLEET_PASSWORD)
-                    logger.debug("Password rempli")
+                    logger.info("Password rempli")
 
-                # Account
-                if WEBFLEET_ACCOUNT:
-                    for sel in ['input[name="account"]', '#account']:
-                        elem = await self.page.query_selector(sel)
-                        if elem:
-                            await elem.fill(WEBFLEET_ACCOUNT)
-                            logger.debug(f"Account rempli via {sel}")
-                            break
-
-                # Submit
-                btn = await self.page.query_selector('button[type="submit"], input[type="submit"]')
+                # Submit - chercher le bouton
+                btn = await self.page.query_selector('button[type="submit"], input[type="submit"], button:has-text("Iniciar"), button:has-text("Login"), button:has-text("Sign")')
                 if btn:
                     await btn.click()
-                    logger.debug("Bouton submit cliqué")
+                    logger.info("Bouton submit cliqué")
 
-                await self.page.wait_for_url("**/web/**", timeout=30000)
+                # Attendre redirection vers l'app
+                await self.page.wait_for_url("**/web/**", timeout=60000)
                 logger.info("✅ Authentification réussie!")
 
             await self.page.wait_for_load_state("networkidle")
